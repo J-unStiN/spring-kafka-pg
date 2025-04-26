@@ -1,0 +1,40 @@
+version: "3.8"
+
+networks:
+  kafka-net:
+    driver: bridge
+
+services:
+  # Zookeeper 서비스 제거
+
+  kafka:
+    image: 'bitnami/kafka:latest'
+    ports:
+      - '9092:9092' # 브로커 리스너 포트
+      - '9093:9093' # 컨트롤러 리스너 포트 (KRaft에서 사용)
+    environment:
+      # --- KRaft 모드 설정 ---
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker # 브로커와 컨트롤러 역할을 모두 수행 [1]
+      - KAFKA_CFG_NODE_ID=1 # 고유한 노드 ID 설정 (필수) [1][2]
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093 # 컨트롤러 쿼럼 설정 (노드ID@호스트:컨트롤러포트) [1][4]
+      - KAFKA_KRAFT_CLUSTER_ID=abcdefghijklmnopqrstuv # 임의의 고유 클러스터 ID 생성 및 설정 [1][4]
+
+      # --- 리스너 설정 (KRaft 용) ---
+      # 내부 리스너: 브로커용(9092), 컨트롤러용(9093) [1]
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      # 외부 접속 주소: 브로커용만 외부에 노출 (일반적)
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092
+      # 리스너와 보안 프로토콜 매핑 (CONTROLLER 리스너 포함 필수) [1]
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER # 컨트롤러 리스너 이름 지정 [1][4]
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT # 브로커 간 통신 리스너 이름 [4] (단일 노드에서는 덜 중요)
+
+      # --- 주키퍼 관련 설정 제거 ---
+      # KAFKA_CFG_ZOOKEEPER_CONNECT=... (제거)
+      # ALLOW_PLAINTEXT_LISTENER=yes (리스너맵에서 관리되므로 불필요할 수 있음)
+
+    volumes:
+      - ./kafka_data:/bitnami/kafka
+    networks:
+      - kafka-net
+    # depends_on 제거 (주키퍼 불필요)
